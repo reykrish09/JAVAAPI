@@ -2,15 +2,15 @@ pipeline {
   agent any
 
   tools {
-    jdk 'jdk17'  // from second file
-    // sonar tool will be dynamically loaded below in script
+    jdk 'jdk17'
+    // sonar will be dynamically loaded
   }
 
   environment {
-    SONAR_HOST_URL   = 'https://sonarcloud.io/'
-    SONAR_AUTH_TOKEN = credentials('sonar')  // from second file
-    SONAR_PROJECT_KEY = 'reykrish09_pcodemo1'
-    SONAR_ORGANIZATION = 'reykrish09'
+    SONAR_HOST_URL      = 'https://sonarcloud.io/'
+    SONAR_AUTH_TOKEN    = credentials('sonar') // Jenkins secret ID
+    SONAR_PROJECT_KEY   = 'reykrish09_pcodemo1'
+    SONAR_ORGANIZATION  = 'reykrish09'
   }
 
   stages {
@@ -22,7 +22,7 @@ pipeline {
 
     stage('Build') {
       steps {
-        sh 'chmod +x mvnw'  //Added this line
+        sh 'chmod +x mvnw'
         sh './mvnw clean install'
       }
     }
@@ -33,11 +33,11 @@ pipeline {
           def scannerHome = tool name: 'sonar', type: 'hudson.plugins.sonar.SonarRunnerInstallation'
           sh """
             ${scannerHome}/bin/sonar-scanner \
-              -Dsonar.projectKey=${env.SONAR_PROJECT_KEY} \
-              -Dsonar.organization=${env.SONAR_ORGANIZATION} \
+              -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+              -Dsonar.organization=${SONAR_ORGANIZATION} \
               -Dsonar.sources=src \
-              -Dsonar.host.url=${env.SONAR_HOST_URL} \
-              -Dsonar.login=${env.SONAR_AUTH_TOKEN} \
+              -Dsonar.host.url=${SONAR_HOST_URL} \
+              -Dsonar.login=${SONAR_AUTH_TOKEN} \
               -Dsonar.java.binaries=.
           """
         }
@@ -46,7 +46,11 @@ pipeline {
 
     stage('Fetch & Fix Vulnerabilities') {
       steps {
-        sh './mvnw exec:java -Dexec.mainClass="com.example.sonar.SonarApiFixer"'
+        sh """
+          ./mvnw exec:java \
+            -Dexec.mainClass=com.example.sonar.SonarApiFixer \
+            -Dexec.args='${SONAR_HOST_URL} ${SONAR_AUTH_TOKEN} ${SONAR_PROJECT_KEY}'
+        """
       }
     }
 
@@ -56,11 +60,11 @@ pipeline {
           def scannerHome = tool name: 'sonar', type: 'hudson.plugins.sonar.SonarRunnerInstallation'
           sh """
             ${scannerHome}/bin/sonar-scanner \
-              -Dsonar.projectKey=${env.SONAR_PROJECT_KEY} \
-              -Dsonar.organization=${env.SONAR_ORGANIZATION} \
+              -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+              -Dsonar.organization=${SONAR_ORGANIZATION} \
               -Dsonar.sources=src \
-              -Dsonar.host.url=${env.SONAR_HOST_URL} \
-              -Dsonar.login=${env.SONAR_AUTH_TOKEN} \
+              -Dsonar.host.url=${SONAR_HOST_URL} \
+              -Dsonar.login=${SONAR_AUTH_TOKEN} \
               -Dsonar.java.binaries=.
           """
         }
@@ -73,7 +77,7 @@ pipeline {
       echo "Analysis and Quality Gate passed!"
     }
     failure {
-      echo "Analysis failed to check logs."
+      echo "Analysis failed – check logs above."
     }
   }
 }
