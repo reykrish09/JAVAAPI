@@ -22,6 +22,7 @@ pipeline {
 
     stage('Build') {
       steps {
+        sh 'chmod +x mvnw'  //Added this line
         sh './mvnw clean install'
       }
     }
@@ -72,7 +73,7 @@ pipeline {
       echo "Analysis and Quality Gate passed!"
     }
     failure {
-      echo "Analysis failed – check logs."
+      echo "Analysis failed to check logs."
     }
   }
 }
