@@ -3,14 +3,12 @@ pipeline {
 
   tools {
     jdk 'jdk17'
-    // sonar will be dynamically loaded
   }
 
   environment {
-    SONAR_HOST_URL      = 'https://sonarcloud.io/'
-    SONAR_AUTH_TOKEN    = credentials('sonar') // Jenkins secret ID
-    SONAR_PROJECT_KEY   = 'reykrish09_pcodemo1'
-    SONAR_ORGANIZATION  = 'reykrish09'
+    SONAR_HOST_URL     = 'https://sonarcloud.io/'
+    SONAR_PROJECT_KEY  = 'reykrish09_pcodemo1'
+    SONAR_ORGANIZATION = 'reykrish09'
   }
 
   stages {
@@ -29,44 +27,52 @@ pipeline {
 
     stage('SonarQube Analysis') {
       steps {
-        script {
-          def scannerHome = tool name: 'sonar', type: 'hudson.plugins.sonar.SonarRunnerInstallation'
-          sh """
-            ${scannerHome}/bin/sonar-scanner \
-              -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-              -Dsonar.organization=${SONAR_ORGANIZATION} \
-              -Dsonar.sources=src \
-              -Dsonar.host.url=${SONAR_HOST_URL} \
-              -Dsonar.login=${SONAR_AUTH_TOKEN} \
-              -Dsonar.java.binaries=.
-          """
+        withCredentials([string(credentialsId: 'sonar', variable: 'SONAR_TOKEN')]) {
+          script {
+            def scannerHome = tool name: 'sonar', type: 'hudson.plugins.sonar.SonarRunnerInstallation'
+            sh """
+              ${scannerHome}/bin/sonar-scanner \\
+                -Dsonar.projectKey=${env.SONAR_PROJECT_KEY} \\
+                -Dsonar.organization=${env.SONAR_ORGANIZATION} \\
+                -Dsonar.sources=src \\
+                -Dsonar.host.url=${env.SONAR_HOST_URL} \\
+                -Dsonar.login=${SONAR_TOKEN} \\
+                -Dsonar.java.binaries=.
+            """
+          }
         }
       }
     }
 
     stage('Fetch & Fix Vulnerabilities') {
       steps {
-        sh """
-          ./mvnw exec:java \
-            -Dexec.mainClass=com.example.sonar.SonarApiFixer \
-            -Dexec.args='${SONAR_HOST_URL} ${SONAR_AUTH_TOKEN} ${SONAR_PROJECT_KEY}'
-        """
+        withCredentials([string(credentialsId: 'sonar', variable: 'SONAR_TOKEN')]) {
+          withEnv([
+            "SONAR_HOST=${env.SONAR_HOST_URL}",
+            "SONAR_KEY=${env.SONAR_PROJECT_KEY}"
+          ]) {
+            // Reads secrets from environment (safe), not interpolated
+            sh './mvnw exec:java -Dexec.mainClass=com.example.sonar.SonarApiFixer'
+          }
+        }
       }
     }
 
     stage('Re-Scan After Fix') {
       steps {
-        script {
-          def scannerHome = tool name: 'sonar', type: 'hudson.plugins.sonar.SonarRunnerInstallation'
-          sh """
-            ${scannerHome}/bin/sonar-scanner \
-              -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-              -Dsonar.organization=${SONAR_ORGANIZATION} \
-              -Dsonar.sources=src \
-              -Dsonar.host.url=${SONAR_HOST_URL} \
-              -Dsonar.login=${SONAR_AUTH_TOKEN} \
-              -Dsonar.java.binaries=.
-          """
+        withCredentials([string(credentialsId: 'sonar', variable: 'SONAR_TOKEN')]) {
+          script {
+            def scannerHome = tool name: 'sonar', type: 'hudson.plugins.sonar.SonarRunnerInstallation'
+            sh """
+              ${scannerHome}/bin/sonar-scanner \\
+                -Dsonar.projectKey=${env.SONAR_PROJECT_KEY} \\
+                -Dsonar.organization=${env.SONAR_ORGANIZATION} \\
+                -Dsonar.sources=src \\
+                -Dsonar.host.url=${env.SONAR_HOST_URL} \\
+                -Dsonar.login=${SONAR_TOKEN} \\
+                -Dsonar.java.binaries=.
+            """
+          }
         }
       }
     }
@@ -74,10 +80,10 @@ pipeline {
 
   post {
     success {
-      echo "Analysis and Quality Gate passed!"
+      echo " Analysis and Quality Gate passed!"
     }
     failure {
-      echo "Analysis failed – check logs above."
+      echo " Analysis failed – check logs above."
     }
   }
 }
